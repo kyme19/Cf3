@@ -9,10 +9,13 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.21.0",
     "@thirdweb-dev/chains": "^0.1.120",
     "@thirdweb-dev/react": "^4.9.4",
     "@thirdweb-dev/sdk": "^4.0.99",
+    "chart.js": "^4.4.6",
     "react": "^18.3",
+    "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.3",
     "react-router-dom": "^6.26.1",
     "thirdweb": "^5",
@@ -23,7 +26,7 @@
     "@types/react-dom": "^18.2.19",
     "@typescript-eslint/eslint-plugin": "^7.0.2",
     "@typescript-eslint/parser": "^7.0.2",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.17",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
@@ -31,6 +34,6 @@
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.10",
     "typescript": "^5.2.2",
-    "vite": "^4"
+    "vite": "^5.4.11"
   }
 }

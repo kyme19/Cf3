@@ -5,6 +5,7 @@ import {
   payment,
   profile,
   withdraw,
+  money,
 } from "../assets";
 
 export const navlinks = [
@@ -19,16 +20,14 @@ export const navlinks = [
     link: "/create-campaign",
   },
   {
-    name: "payment",
+    name: 'withdraw',
     imgUrl: payment,
-    link: "/",
-    disabled: true,
+    link: '/campaign/1/withdraw', // For viewing withdrawal requests
   },
   {
-    name: "withdraw",
-    imgUrl: withdraw,
-    link: "/",
-    disabled: true,
+    name: 'create-withdraw',
+    imgUrl: money,
+    link: '/campaign/1/withdraw/create', // For creating new withdrawal request
   },
   {
     name: "profile",

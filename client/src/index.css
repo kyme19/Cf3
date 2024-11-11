@@ -16,3 +16,63 @@ input [type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   filter: invert(0.8);
 }
+
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #4b5563 #1f2937;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #1f2937;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+
+/* Add this to your existing CSS */
+:root {
+  /* Default dark theme variables */
+  --primary: #1c1c24;
+  --secondary: #2c2f32;
+  --text: #ffffff;
+  --subtext: #808191;
+  --accent: #1dc071;
+  --background: #13131a;
+  --card: #1c1c24;
+  --border: #3a3a43;
+}
+
+/* Add smooth transitions for theme changes */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Optional: Add specific transitions for certain elements */
+.bg-theme-primary,
+.bg-theme-secondary,
+.bg-theme-background,
+.bg-theme-card {
+  transition: background-color 0.3s ease;
+}
+
+.text-theme-text,
+.text-theme-subtext,
+.text-theme-accent {
+  transition: color 0.3s ease;
+}
+
+.border-theme-border {
+  transition: border-color 0.3s ease;
+}
