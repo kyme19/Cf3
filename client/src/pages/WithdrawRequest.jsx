@@ -1,186 +1,256 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ethers } from 'ethers';
 import { useStateContext } from '../context';
-import { Loader } from '../components';
+import { CustomButton, Loader } from '../components';
 
 const WithdrawRequest = () => {
     const navigate = useNavigate();
     const { id } = useParams();
-    const { address, contract, getDonations, getCampagins, getWithdrawRequests } = useStateContext();
+    const { 
+        address, 
+        contract, 
+        getDonations, 
+        getCampaigns, 
+        getWithdrawRequests,
+        approveRequest,
+        finalizeRequest 
+    } = useStateContext();
   
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
     const [campaign, setCampaign] = useState(null);
-    const [isDonator, setIsDonator] = useState(false);
-    const [isCreator, setIsCreator] = useState(false);
-    const [donators, setDonators] = useState([]);
     const [withdrawRequests, setWithdrawRequests] = useState([]);
-    const [campaignBalance, setCampaignBalance] = useState({
-        eth: '0',
-        usd: '0',
-        targetReached: false
-    });
-    const [error, setError] = useState(null);
+    const [actionInProgress, setActionInProgress] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
-        const fetchCampaignDetails = async () => {
+        let mounted = true;
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        const fetchData = async () => {
+            if (!contract || !id || !address) return;
+
             try {
-                setIsLoading(true);
-                setError(null);
-                const data = await getCampagins(id); // Adjusted to use getCampagins
+                const campaigns = await getCampaigns();
+                const currentCampaign = campaigns.find(c => c.pId.toString() === id);
                 
-                if (!data) {
-                    setError("Campaign not found");
+                if (!currentCampaign) {
+                    if (retryCount < maxRetries) {
+                        retryCount++;
+                        setTimeout(fetchData, 1000); // Retry after 1 second
+                        return;
+                    }
+                    if (mounted) setError("Campaign not found");
                     return;
                 }
 
-                const campaignDonations = await getDonations(id);
-                const requests = await getWithdrawRequests(id);
-                
-                const uniqueDonators = [...new Set(campaignDonations.map(d => d.donator))];
-                const userIsDonator = uniqueDonators.some(
-                    donator => donator.toLowerCase() === address?.toLowerCase()
-                );
-                const userIsCreator = data.owner.toLowerCase() === address?.toLowerCase();
-                
-                setCampaign(data);
-                setDonators(uniqueDonators);
-                setIsDonator(userIsDonator);
-                setIsCreator(userIsCreator);
-                setWithdrawRequests(requests);
-                
-                const targetReached = Number(data.amountCollected) >= Number(data.target);
-                setCampaignBalance({
-                    eth: data.amountCollected,
-                    usd: (Number(data.amountCollected) * 3000).toFixed(2),
-                    targetReached
-                });
-
+                if (mounted) {
+                    setCampaign(currentCampaign);
+                    const requests = await getWithdrawRequests(id);
+                    setWithdrawRequests(requests);
+                    setError('');
+                }
             } catch (error) {
-                console.error("Error fetching campaign details:", error);
-                setError("Error loading campaign details");
+                if (mounted) {
+                    console.error("Error fetching data:", error);
+                    setError("Failed to load campaign details");
+                }
             } finally {
-                setIsLoading(false);
+                if (mounted) {
+                    setIsLoading(false);
+                }
             }
         };
 
-        if(contract && id) fetchCampaignDetails();
-    }, [contract, address, id]);
+        setIsLoading(true);
+        fetchData();
 
-    const RequestRow = ({ request }) => (
-        <div className="grid grid-cols-7 gap-4 p-4 border-b border-[var(--border)] hover:bg-[var(--secondary)] transition-colors">
-            <span className="text-[var(--text)]">{request.id}</span>
-            <span className="text-[var(--text)] truncate">{request.description}</span>
-            <span className="text-[var(--text)]">{request.amount} ETH</span>
-            <span className="text-[var(--text)] truncate">{request.recipient}</span>
-            <span className="text-[var(--text)]">{request.approvalCount} / {donators.length}</span>
-            <span className="text-[var(--text)]">{new Date(request.created * 1000).toLocaleDateString()}</span>
-            <div className="flex gap-2">
-                {isDonator && !request.approved && (
-                    <button 
-                        onClick={() => handleApprove(request.id)}
-                        className="px-3 py-1 bg-[var(--accent)] text-white rounded hover:opacity-90"
-                    >
-                        Approve
-                    </button>
-                )}
-                {isCreator && request.approvalCount >= donators.length / 2 && !request.finalized && (
-                    <button 
-                        onClick={() => handleFinalize(request.id)}
-                        className="px-3 py-1 bg-[#8c6dfd] text-white rounded hover:opacity-90"
-                    >
-                        Finalize
-                    </button>
-                )}
+        return () => {
+            mounted = false;
+        };
+    }, [contract, id, address, getCampaigns, getWithdrawRequests, refreshKey]);
+
+    const handleApprove = async (requestId) => {
+        if (actionInProgress) return;
+        
+        try {
+            setActionInProgress(true);
+            await approveRequest(id, requestId);
+            setRefreshKey(prev => prev + 1);
+        } catch (error) {
+            console.error("Error approving request:", error);
+            setError("Failed to approve request");
+        } finally {
+            setActionInProgress(false);
+        }
+    };
+
+    const handleFinalize = async (requestId) => {
+        if (actionInProgress) return;
+        
+        try {
+            setActionInProgress(true);
+            await finalizeRequest(id, requestId);
+            setRefreshKey(prev => prev + 1);
+        } catch (error) {
+            console.error("Error finalizing request:", error);
+            setError("Failed to finalize request");
+        } finally {
+            setActionInProgress(false);
+        }
+    };
+
+    const formatDate = (timestamp) => {
+        return new Date(timestamp * 1000).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    const shortenAddress = (address) => {
+        return `${address.slice(0, 6)}...${address.slice(-4)}`;
+    };
+
+    if (!address) {
+        return (
+            <div className="bg-[var(--card)] flex justify-center items-center flex-col rounded-[10px] sm:p-10 p-4">
+                <p className="font-epilogue font-semibold text-[16px] leading-[30px] text-[var(--text)]">
+                    Please connect your wallet to view withdrawal requests.
+                </p>
             </div>
-        </div>
-    );
-
-    if (isLoading) return <Loader />;
+        );
+    }
 
     return (
-        <div className="bg-[var(--background)] min-h-screen p-6">
+        <div className="bg-[var(--bg-secondary)] flex justify-center items-center flex-col rounded-[10px] sm:p-10 p-4">
+            {/* Wallet Status */}
+            <div className="w-full flex justify-end mb-4">
+                {address ? (
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#1dc071]"></span>
+                        <p className="font-epilogue text-[14px] text-[var(--text)]">Wallet Connected</p>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-[#ff0000]"></span>
+                        <p className="font-epilogue text-[14px] text-[var(--text)]">⚠️ Please connect wallet to continue</p>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex justify-center items-center p-[16px] sm:min-w-[380px] bg-[var(--card)] rounded-[10px]">
+                <h1 className="font-epilogue font-bold sm:text-[25px] text-[18px] leading-[38px] text-[var(--text)]">Withdrawal Requests</h1>
+            </div>
+
             {error ? (
-                <div className="bg-[var(--card)] rounded-[15px] p-4 mb-6 text-center">
-                    <p className="text-[var(--text)] text-xl mb-4">{error}</p>
-                    <Link to="/" className="text-[var(--accent)] hover:opacity-90">
-                        ← Back to Campaigns
-                    </Link>
+                <div className="mt-[20px] p-4 bg-red-100 dark:bg-red-900 rounded-[10px]">
+                    <p className="font-epilogue text-red-600 dark:text-red-200">{error}</p>
+                </div>
+            ) : !campaign ? (
+                <div className="mt-[65px] flex flex-col items-center">
+                    <p className="font-epilogue text-[16px] text-[var(--text)]">No withdrawal requests have been made yet. Check back later!</p>
                 </div>
             ) : (
                 <>
-                    <div className="bg-[var(--card)] rounded-[15px] p-4 mb-6">
-                        <div className="flex justify-between items-center mb-4">
-                            <h2 className="text-[var(--text)] text-xl font-bold">
-                                {campaign?.title}
-                            </h2>
-                            <div className="flex items-center space-x-2">
-                                <span className="text-[var(--text)]">Balance:</span>
-                                <span className="text-[var(--accent)] font-bold">{campaignBalance.eth} ETH</span>
-                                <span className="text-[var(--subtext)]">(${campaignBalance.usd})</span>
+                    {/* Campaign Details */}
+                    <div className="w-full bg-[var(--card)] rounded-[10px] mt-[20px] p-4">
+                        <h2 className="font-epilogue font-semibold text-[18px] text-[var(--text)]">{campaign.title}</h2>
+                        <div className="mt-[20px] flex flex-col gap-4">
+                            <div className="flex justify-between items-center">
+                                <span className="font-epilogue text-[14px] text-[var(--subtext)]">Campaign Balance</span>
+                                <span className="font-epilogue text-[16px] text-[var(--text)]">
+                                    {ethers.utils.formatEther(campaign.amountCollected)} ETH
+                                </span>
                             </div>
-                        </div>
-                        
-                        <div className="flex gap-4">
-                            <div className={`px-4 py-2 rounded-lg ${campaignBalance.targetReached ? 'bg-[#1dc071]/10' : 'bg-[#ff8a00]/10'}`}>
-                                <span className={campaignBalance.targetReached ? 'text-[#1dc071]' : 'text-[#ff8a00]'}>{campaignBalance.targetReached ? '✓ Target Reached' : '⚠ Target Not Reached'}</span>
+                            <div className="flex justify-between items-center">
+                                <span className="font-epilogue text-[14px] text-[var(--subtext)]">Campaign Owner</span>
+                                <span className="font-epilogue text-[14px] text-[var(--text)]">
+                                    {campaign.owner.slice(0, 6)}...{campaign.owner.slice(-4)}
+                                </span>
                             </div>
-                            {isDonator && (
-                                <div className="px-4 py-2 rounded-lg bg-[#1dc071]/10">
-                                    <span className="text-[#1dc071]">You are a donator</span>
-                                </div>
-                            )}
-                            {isCreator && (
-                                <div className="px-4 py-2 rounded-lg bg-[#8c6dfd]/10">
-                                    <span className="text-[#8c6dfd]">You are the creator</span>
-                                </div>
-                            )}
+                            <div className="flex justify-between items-center">
+                                <span className="font-epilogue text-[14px] text-[var(--subtext)]">Status</span>
+                                <span className={`font-epilogue text-[14px] ${campaign.isRefunded ? 'text-red-500' : 'text-green-500'}`}>
+                                    {campaign.isRefunded ? 'Refunded' : 'Active'}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="bg-[var(--card)] rounded-xl overflow-hidden">
-                        <div className="grid grid-cols-7 gap-4 p-4 bg-[var(--secondary)] text-[var(--subtext)]">
-                            <span>ID</span>
-                            <span>Description</span>
-                            <span>Amount</span>
-                            <span>Recipient</span>
-                            <span>Approvals</span>
-                            <span>Created</span>
-                            <span>Actions</span>
+                    {/* Withdrawal Requests Table */}
+                    {withdrawRequests.length === 0 ? (
+                        <div className="mt-[20px] w-full bg-[var(--card)] rounded-[10px] p-4">
+                            <p className="font-epilogue text-center text-[16px] text-[var(--text)]">No withdrawal requests yet</p>
                         </div>
-
-                        {withdrawRequests.length > 0 ? (
-                            withdrawRequests.map((request) => (
-                                <RequestRow key={request.id} request={request} />
-                            ))
-                        ) : (
-                            <div className="p-8 text-center">
-                                <p className="text-[var(--subtext)] mb-4">No withdrawal requests found</p>
-                                {!isDonator && !isCreator && (
-                                    <div className="text-[var(--subtext)] mt-2">
-                                        <p className="mb-2">Want to participate in this campaign?</p>
-                                        <Link 
-                                            to={`/campaign-details/${id}`}
-                                            className="text-[var(--accent)] hover:opacity-90"
-                                        >
-                                            Donate Now →
-                                        </Link>
-                                    </div>
-                                )}
-                                {isDonator && (
-                                    <p className="text-[var(--subtext)]">You'll be able to approve withdrawal requests when they're created</p>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {isCreator && (
-                        <div className="mt-6 flex justify-end">
-                            <button 
-                                onClick={() => navigate(`/campaign/${id}/withdraw/create`)}
-                                className="px-6 py-3 bg-[var(--accent)] rounded-lg text-white hover:opacity-90 transition-opacity"
-                            >
-                                Create Withdrawal Request
-                            </button>
+                    ) : (
+                        <div className="mt-[20px] w-full overflow-x-auto">
+                            <table className="w-full bg-[var(--card)] rounded-[10px]">
+                                <thead className="border-b border-[var(--border)]">
+                                    <tr>
+                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">ID</th>
+                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Description</th>
+                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Amount</th>
+                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Recipient</th>
+                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Status</th>
+                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {withdrawRequests.map((request, index) => (
+                                        <tr key={index} className="border-b border-[var(--border)] hover:bg-[var(--bg-secondary)]">
+                                            <td className="p-4 font-epilogue text-[14px] text-[var(--text)]">{request.id.toString()}</td>
+                                            <td className="p-4 font-epilogue text-[14px] text-[var(--text)]">{request.description}</td>
+                                            <td className="p-4 font-epilogue text-[14px] text-[var(--text)]">
+                                                {ethers.utils.formatEther(request.amount)} ETH
+                                            </td>
+                                            <td className="p-4 font-epilogue text-[14px] text-[var(--text)]">
+                                                {`${request.recipient.slice(0, 6)}...${request.recipient.slice(-4)}`}
+                                            </td>
+                                            <td className="p-4 font-epilogue text-[14px]">
+                                                {request.complete ? (
+                                                    <span className="text-green-500">Completed</span>
+                                                ) : request.approvalCount >= campaign.donatorCount / 2 ? (
+                                                    <span className="text-yellow-500">Ready to Finalize</span>
+                                                ) : (
+                                                    <span className="text-[var(--text)]">
+                                                        {request.approvalCount} / {campaign.donatorCount} Approvals
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="p-4">
+                                                {!request.complete && (
+                                                    <div className="flex gap-2">
+                                                        {!request.approvers[address] && (
+                                                            <CustomButton 
+                                                                btnType="button"
+                                                                title="Approve"
+                                                                styles={`bg-[#1dc071] ${actionInProgress ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                handleClick={() => handleApprove(request.id)}
+                                                                disabled={actionInProgress}
+                                                            />
+                                                        )}
+                                                        {campaign.owner.toLowerCase() === address.toLowerCase() && 
+                                                         request.approvalCount >= campaign.donatorCount / 2 && (
+                                                            <CustomButton 
+                                                                btnType="button"
+                                                                title="Finalize"
+                                                                styles={`bg-[#8c6dfd] ${actionInProgress ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                handleClick={() => handleFinalize(request.id)}
+                                                                disabled={actionInProgress}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </>

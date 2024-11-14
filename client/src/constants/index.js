@@ -5,8 +5,13 @@ import {
   payment,
   profile,
   withdraw,
-  money,
 } from "../assets";
+
+import { 
+  BsCashCoin,
+  BsCashStack,
+  BsWallet
+} from 'react-icons/bs';
 
 export const navlinks = [
   {
@@ -21,12 +26,12 @@ export const navlinks = [
   },
   {
     name: 'withdraw',
-    imgUrl: payment,
+    IconComponent: BsCashStack,
     link: '/campaign/1/withdraw', // For viewing withdrawal requests
   },
   {
     name: 'create-withdraw',
-    imgUrl: money,
+    IconComponent: BsCashCoin,
     link: '/campaign/1/withdraw/create', // For creating new withdrawal request
   },
   {

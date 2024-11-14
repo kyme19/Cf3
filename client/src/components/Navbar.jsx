@@ -9,26 +9,39 @@ const Navbar = () => {
   const navigate = useNavigate();
   const [isActive, setisActive] = useState("dashboard");
   const [toggleDrawer, settoggleDrawer] = useState(false);
-  const { connect, address } = useStateContext();
+  const { connect, address, getCampaigns } = useStateContext();
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      navigate(`/?search=${encodeURIComponent(searchTerm.trim())}`);
+    }
+  };
 
   return (
     <div className="flex md:flex-row flex-col-reverse justify-between mb-[35px] gap-6">
       {/* Search Bar */}
-      <div className="lg:flex-1 flex flex-row max-w-[458px] py-2 pl-4 pr-2 h-[52px] bg-[var(--card)] rounded-[100px] border border-[var(--border)]">
+      <form onSubmit={handleSearch} className="lg:flex-1 flex flex-row max-w-[458px] py-2 pl-4 pr-2 h-[52px] bg-[var(--card)] rounded-[100px] border border-[var(--border)]">
         <input
           type="text"
           placeholder="Search for campaigns"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="flex w-full font-epilogue font-normal text-[14px] 
           placeholder:text-[var(--subtext)] text-[var(--text)] bg-transparent outline-none"
         />
-        <div className="w-[72px] h-full rounded-[20px] bg-[var(--accent)] flex justify-center items-center cursor-pointer hover:opacity-90 transition-opacity">
+        <button 
+          type="submit"
+          className="w-[72px] h-full rounded-[20px] bg-[var(--accent)] flex justify-center items-center cursor-pointer hover:opacity-90 transition-opacity"
+        >
           <img
             src={search}
             alt="search"
             className="w-[15px] h-[15px] object-contain"
           />
-        </div>
-      </div>
+        </button>
+      </form>
 
       {/* Desktop Navigation */}
       <div className="sm:flex hidden flex-row justify-end gap-4">

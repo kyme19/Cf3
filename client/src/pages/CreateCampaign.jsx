@@ -8,7 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { money } from "../assets";
 import { useTheme } from '../context/ThemeContext';
 
-const genAI = new GoogleGenerativeAI("AIzaSyApXdUX1M5e8Uz0d4VbKUgib7Ql00Chptw");
+const genAI = new GoogleGenerativeAI("AIzaSyDaccPlLbmhMSNKtMCrUpC_FEYfLjiYFiE");
 
 const CreateCampaign = () => {
   const navigate = useNavigate();
@@ -108,7 +108,8 @@ const CreateCampaign = () => {
       await checkIfImage(form.image, async (exists) => {
         if (exists) {
           try {
-            const parsedAmount = ethers.utils.parseUnits(form.target, 18);
+            // Convert ETH to Wei for smart contract
+            const parsedAmount = ethers.utils.parseEther(form.target);
             await createCampaign({
               ...form,
               target: parsedAmount.toString(),
@@ -133,125 +134,211 @@ const CreateCampaign = () => {
   };
 
   return (
-    <div className="bg-[var(--card)] flex justify-center items-center flex-col rounded-[10px] sm:p-10 p-4 transition-colors duration-200">
-      {isLoading && <Loader />}
-      <div className="flex justify-center items-center p-[16px] sm:min-w-[380px] bg-[var(--secondary)] rounded-[10px]">
-        <h1 className="font-epilogue font-bold sm:text-[25px] text-[18px] leading-[38px] text-[var(--text)]">
-          Start a Campaign 🚀
-        </h1>
-      </div>
-
-      <form onSubmit={handleSubmit} className="w-full mt-[65px] flex flex-col gap-[30px]">
-        <div className="flex flex-wrap gap-[40px]">
-          <FormField
-            labelName="Your Name *"
-            placeholder="John Doe"
-            inputType="text"
-            value={form.name}
-            handleChange={(e) => handleFormFieldChange('name', e)}
-            error={errors.name}
-          />
-          <FormField
-            labelName="Campaign Title *"
-            placeholder="Write a title"
-            inputType="text"
-            value={form.title}
-            handleChange={(e) => handleFormFieldChange('title', e)}
-            error={errors.title}
-          />
-        </div>
-
-        <div className="relative">
-          <div className="flex items-center gap-2">
-            <h4 className="font-epilogue font-medium text-[14px] leading-[22px] text-[var(--text)]">
-              Story *
-            </h4>
-            <button
-              type="button"
-              onClick={() => setShowAIHelper(!showAIHelper)}
-              className="text-2xl hover:opacity-80 transition-opacity"
-              title="Get AI assistance"
-            >
-              ✨
-            </button>
+    <div className="bg-[var(--background)] flex-1 min-h-screen">
+      <div className="flex justify-center items-start p-4 sm:p-8">
+        <div className="flex justify-center items-center flex-col bg-[var(--card)] rounded-[10px] sm:w-[700px] w-full p-4 sm:p-10">
+          {/* Wallet Status */}
+          <div className="w-full flex justify-end mb-4">
+            {address ? (
+              <div className="flex items-center gap-2 bg-[var(--secondary)] px-4 py-2 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-[var(--success)]"></span>
+                <p className="font-epilogue text-[14px] text-[var(--text)]">Wallet Connected</p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-[var(--secondary)] px-4 py-2 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-[var(--error)]"></span>
+                <p className="font-epilogue text-[14px] text-[var(--text)]">⚠️ Please connect wallet</p>
+              </div>
+            )}
           </div>
 
+          <h1 className="font-epilogue font-bold text-[28px] text-[var(--text)] text-center mb-8">
+            Start a Campaign
+          </h1>
+
+          {!address ? (
+            <div className="text-center py-8">
+              <p className="font-epilogue text-[16px] text-[var(--text)]">
+                Please connect your wallet to create a campaign
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="w-full flex flex-col gap-6">
+              {/* Money Info Card */}
+              <div className="bg-[var(--success)]/5 border border-[var(--success)]/20 p-4 rounded-[10px] flex items-center gap-4 mb-6">
+                <div className="bg-[var(--success)]/10 p-2 rounded-full">
+                  <img src={money} alt="money" className="w-[32px] h-[32px] object-contain"/>
+                </div>
+                <div>
+                  <h4 className="font-epilogue font-semibold text-[16px] text-[var(--text)]">
+                    You will get 100% of the raised amount
+                  </h4>
+                  <p className="font-epilogue text-[12px] text-[var(--subtext)] mt-1">
+                    Campaigns raise more when they have a clear goal and plan
+                  </p>
+                </div>
+              </div>
+
+              {/* Campaign Form Fields */}
+              <div className="flex flex-col gap-6">
+                <FormField 
+                  labelName="Your Name *"
+                  placeholder="John Doe"
+                  inputType="text"
+                  value={form.name}
+                  handleChange={(e) => handleFormFieldChange('name', e)}
+                />
+                {errors.name && <p className="text-[var(--error)] text-[14px] mt-1">{errors.name}</p>}
+
+                <FormField 
+                  labelName="Campaign Title *"
+                  placeholder="Write a catchy title"
+                  inputType="text"
+                  value={form.title}
+                  handleChange={(e) => handleFormFieldChange('title', e)}
+                />
+                {errors.title && <p className="text-[var(--error)] text-[14px] mt-1">{errors.title}</p>}
+
+                <div className="relative">
+                  <FormField 
+                    labelName="Story *"
+                    placeholder="Write your story"
+                    isTextArea
+                    value={form.description}
+                    handleChange={(e) => handleFormFieldChange('description', e)}
+                  />
+                  {errors.description && <p className="text-[var(--error)] text-[14px] mt-1">{errors.description}</p>}
+
+                  {/* AI Helper Button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowAIHelper(true)}
+                    className="absolute top-0 right-0 bg-[var(--accent)] hover:bg-[var(--accent)]/90 text-white px-3 py-1 rounded-md text-sm transition-colors"
+                  >
+                    AI Help ✨
+                  </button>
+                </div>
+
+                <div className="flex flex-wrap gap-8">
+                  <div className="w-full sm:w-[calc(50%-16px)]">
+                    <FormField 
+                      labelName="Goal *"
+                      placeholder="ETH 0.50"
+                      inputType="text"
+                      value={form.target}
+                      handleChange={(e) => handleFormFieldChange('target', e)}
+                    />
+                    {errors.target && <p className="text-[var(--error)] text-[14px] mt-1">{errors.target}</p>}
+                  </div>
+
+                  <div className="w-full sm:w-[calc(50%-16px)]">
+                    <FormField 
+                      labelName="End Date *"
+                      placeholder="End Date"
+                      inputType="date"
+                      value={form.deadline}
+                      handleChange={(e) => handleFormFieldChange('deadline', e)}
+                    />
+                    {errors.deadline && <p className="text-[var(--error)] text-[14px] mt-1">{errors.deadline}</p>}
+                  </div>
+                </div>
+
+                <FormField 
+                  labelName="Campaign image *"
+                  placeholder="Place image URL of your campaign"
+                  inputType="url"
+                  value={form.image}
+                  handleChange={(e) => handleFormFieldChange('image', e)}
+                />
+                {errors.image && <p className="text-[var(--error)] text-[14px] mt-1">{errors.image}</p>}
+
+                {form.image && (
+                  <div className="mt-2">
+                    <img 
+                      src={form.image} 
+                      alt="campaign" 
+                      className="w-full h-[200px] object-cover rounded-[10px]"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        setErrors(prev => ({...prev, image: "Invalid image URL"}));
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-center items-center mt-4">
+                <CustomButton 
+                  btnType="submit"
+                  title={isLoading ? "Creating..." : "Submit Campaign 🚀"}
+                  styles={`bg-[var(--accent)] hover:bg-[var(--accent)]/90 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  disabled={isLoading}
+                />
+              </div>
+            </form>
+          )}
+
+          {/* AI Helper Modal */}
           {showAIHelper && (
-            <div className="mt-4 p-4 bg-[var(--secondary)] rounded-[10px] border border-[var(--border)]">
-              <textarea
-                placeholder="Provide context for your campaign (e.g., purpose, background, goals) to help AI generate a compelling story..."
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                className="w-full min-h-[100px] p-4 rounded-[10px] bg-[var(--background)] 
-                  text-[var(--text)] placeholder:text-[var(--subtext)] border border-[var(--border)]
-                  outline-none resize-none focus:border-[var(--accent)] transition-colors"
-              />
-              <button
-                type="button"
-                onClick={generateStory}
-                disabled={isGenerating}
-                className={`mt-4 px-4 py-2 rounded-[10px] bg-[var(--accent)] text-white
-                  hover:opacity-90 transition-opacity ${isGenerating ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {isGenerating ? 'Generating...' : 'Generate Story'}
-              </button>
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+              <div className="bg-[var(--card)] p-6 rounded-lg w-full max-w-[500px] relative">
+                {/* Close button */}
+                <button
+                  onClick={() => setShowAIHelper(false)}
+                  className="absolute top-4 right-4 text-[var(--subtext)] hover:text-[var(--text)] transition-colors"
+                >
+                  ✕
+                </button>
+
+                <h3 className="font-epilogue font-semibold text-[20px] text-[var(--text)] mb-4">
+                  AI Story Helper ✨
+                </h3>
+
+                <p className="text-[var(--subtext)] mb-4 text-[14px]">
+                  Let AI help you create a compelling campaign story. Describe your idea briefly, and we'll generate a detailed story for you.
+                </p>
+
+                <textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="E.g., I'm raising funds to build a community garden that will provide fresh produce to local food banks..."
+                  className="w-full p-4 rounded-lg bg-[var(--background)] text-[var(--text)] border border-[var(--border)] mb-4 min-h-[120px] focus:border-[var(--accent)] outline-none transition-colors"
+                  rows={4}
+                />
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    onClick={() => setShowAIHelper(false)}
+                    className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--text)] hover:bg-[var(--background)] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={generateStory}
+                    disabled={isGenerating || !aiPrompt.trim()}
+                    className={`px-4 py-2 rounded-lg bg-[var(--accent)] text-white hover:bg-[var(--accent)]/90 transition-colors flex items-center gap-2
+                        ${(isGenerating || !aiPrompt.trim()) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {isGenerating ? (
+                      <>
+                        <span className="animate-spin">⚡</span>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <span>✨</span>
+                        Generate Story
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
-          <FormField
-            isTextArea
-            placeholder="Write your story"
-            value={form.description}
-            handleChange={(e) => handleFormFieldChange('description', e)}
-            error={errors.description}
-          />
+          {isLoading && <Loader />}
         </div>
-
-        <div className="w-full flex justify-start items-center p-4 bg-[var(--gradient-1)] h-[120px] rounded-[10px]">
-          <img src={money} alt="money" className="w-[40px] h-[40px] object-contain"/>
-          <h4 className="font-epilogue font-bold text-[25px] text-white ml-[20px]">
-            You will get 100% of the raised amount
-          </h4>
-        </div>
-
-        <div className="flex flex-wrap gap-[40px]">
-          <FormField
-            labelName="Goal (ETH) *"
-            placeholder="ETH 0.50"
-            inputType="number"
-            value={form.target}
-            handleChange={(e) => handleFormFieldChange('target', e)}
-            error={errors.target}
-          />
-          <FormField
-            labelName="End Date *"
-            placeholder="End Date"
-            inputType="date"
-            value={form.deadline}
-            handleChange={(e) => handleFormFieldChange('deadline', e)}
-            error={errors.deadline}
-            min={new Date().toISOString().split('T')[0]}
-          />
-        </div>
-
-        <FormField
-          labelName="Campaign Image *"
-          placeholder="Place image URL of your campaign"
-          inputType="url"
-          value={form.image}
-          handleChange={(e) => handleFormFieldChange('image', e)}
-          error={errors.image}
-        />
-
-        <div className="flex justify-center items-center mt-[40px]">
-          <CustomButton 
-            btnType="submit"
-            title={isLoading ? "Creating..." : "Submit new campaign"}
-            styles={`bg-[var(--accent)] ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={isLoading}
-          />
-        </div>
-      </form>
+      </div>
     </div>
   );
 };

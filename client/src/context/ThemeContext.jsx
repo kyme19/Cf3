@@ -5,6 +5,30 @@ const ThemeContext = createContext();
 export const ThemeProvider = ({ children }) => {
     const [isDarkMode, setIsDarkMode] = useState(true);
 
+    useEffect(() => {
+        // Apply theme to document
+        document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+        
+        // Store preference
+        localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+    }, [isDarkMode]);
+
+    useEffect(() => {
+        // Load saved preference
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme) {
+            setIsDarkMode(savedTheme === 'dark');
+        } else {
+            // Check system preference
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            setIsDarkMode(prefersDark);
+        }
+    }, []);
+
+    const toggleTheme = () => {
+        setIsDarkMode(prev => !prev);
+    };
+
     // Theme colors
     const theme = {
         dark: {
@@ -70,18 +94,6 @@ export const ThemeProvider = ({ children }) => {
             'shadow-button': '0px 2px 4px rgba(0, 0, 0, 0.05)'
         }
     };
-
-    const toggleTheme = () => {
-        setIsDarkMode(!isDarkMode);
-        localStorage.setItem('isDarkMode', !isDarkMode);
-    };
-
-    useEffect(() => {
-        const savedTheme = localStorage.getItem('isDarkMode');
-        if (savedTheme !== null) {
-            setIsDarkMode(JSON.parse(savedTheme));
-        }
-    }, []);
 
     useEffect(() => {
         const root = document.documentElement;

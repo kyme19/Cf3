@@ -126,3 +126,4 @@ const CampaignInsights = ({ campaigns }) => {
 };
 
 export default CampaignInsights;
+
