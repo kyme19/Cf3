@@ -1,6 +1,7 @@
 import React, { useContext, createContext, useState } from 'react';
 import { useAddress, useContract, useMetamask, useContractWrite } from '@thirdweb-dev/react';
 import { ethers } from 'ethers';
+import { recordTransactionAPI, createCampaignAPI } from '../api';
 
 const StateContext = createContext();
 
@@ -23,7 +24,7 @@ export const StateContextProvider = ({ children }) => {
     };
 
     const publishCampaign = async (form) => {
-        if (loading) return; // Prevent duplicate submissions
+        if (loading) return;
         try {
             setLoading(true);
             const data = await createCampaign({
@@ -36,7 +37,34 @@ export const StateContextProvider = ({ children }) => {
                     form.image
                 ],
             });
-            console.log("Contract call success", data);
+
+            // Create campaign record in MongoDB
+            await createCampaignRecord({
+                campaignId: data.receipt.events[0].args.campaignId.toString(),
+                title: form.title,
+                description: form.description,
+                target: form.target,
+                deadline: new Date(form.deadline),
+                owner: address,
+                image: form.image
+            });
+
+            // Record the transaction
+            await recordTransactionAPI({
+                transactionHash: data.receipt.transactionHash,
+                campaignId: data.receipt.events[0].args.campaignId.toString(),
+                type: 'CAMPAIGN_CREATION',
+                from: address,
+                to: await contract.getAddress(),
+                amount: '0',
+                status: 'COMPLETED',
+                metadata: {
+                    title: form.title,
+                    target: form.target,
+                    deadline: form.deadline
+                }
+            });
+
             return { success: true, data };
         } catch (error) {
             console.error("Contract call failure", error);
@@ -101,29 +129,55 @@ export const StateContextProvider = ({ children }) => {
 
     const donate = async (pId, amount) => {
         try {
-            setLoading(true);
-            const campaign = campaignStatuses[pId];
-            if (campaign?.isSuspended) {
-                throw new Error("Cannot donate to a suspended campaign");
+            console.log('Starting donation process:', { pId, amount });
+            const data = await contract.call('donateToCampaign', [pId], {
+                value: ethers.utils.parseEther(amount)
+            });
+            
+            console.log('Blockchain transaction successful:', data);
+
+            // Record the transaction via API
+            try {
+                const transactionData = {
+                    transactionHash: data.receipt.transactionHash,
+                    campaignId: pId.toString(),
+                    type: 'DONATION',
+                    from: address,
+                    to: await contract.getAddress(),
+                    amount: amount,
+                    status: 'COMPLETED',
+                    metadata: {
+                        campaignId: pId,
+                        donationAmount: amount,
+                        donorAddress: address,
+                        timestamp: new Date().toISOString(),
+                        transactionDetails: {
+                            gasUsed: data.receipt.gasUsed.toString(),
+                            blockNumber: data.receipt.blockNumber,
+                            status: data.receipt.status
+                        }
+                    }
+                };
+
+                await recordTransactionAPI(transactionData);
+                console.log('Transaction recorded successfully via API');
+                return data;
+            } catch (apiError) {
+                console.error('API error:', apiError);
+                // Continue even if API recording fails
+                return data;
             }
-            const data = await contract.call(
-                'donateToCampaign', 
-                [pId],
-                { value: ethers.utils.parseEther(amount) }
-            );
-            return { success: true, data };
         } catch (error) {
-            console.error("Donation error:", error);
-            setError(error.message);
+            console.error('Contract error:', error);
+            if (error?.receipt?.status === 1) {
+                return { receipt: error.receipt };
+            }
             throw error;
-        } finally {
-            setLoading(false);
         }
     };
 
     const getDonations = async (pId) => {
         try {
-            setLoading(true);
             const donations = await contract.call('getDonators', [pId]);
             const numberOfDonations = donations[0].length;
 
@@ -131,16 +185,14 @@ export const StateContextProvider = ({ children }) => {
             for (let i = 0; i < numberOfDonations; i++) {
                 parsedDonations.push({
                     donator: donations[0][i],
-                    donation: ethers.utils.formatEther(donations[1][i].toString())
+                    donation: donations[1][i] // Keep as BigNumber for proper formatting
                 });
             }
+
             return parsedDonations;
         } catch (error) {
             console.error("Error fetching donations:", error);
-            setError(error.message);
             return [];
-        } finally {
-            setLoading(false);
         }
     };
 

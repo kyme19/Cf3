@@ -26,7 +26,10 @@ const CampaignDetails = () => {
 
   const fetchDonators = async () => {
     const data = await getDonations(state.pId);
-    setDonators(data);
+    setDonators(data.map(item => ({
+        donator: item.donator,
+        donation: ethers.utils.formatEther(item.donation) // Ensure proper ETH formatting
+    })));
   }
 
   useEffect(() => {
@@ -34,15 +37,36 @@ const CampaignDetails = () => {
   }, [contract, address])
 
   const handleDonate = async () => {
+    if (!amount || amount <= 0) {
+        alert("Please enter a valid amount");
+        return;
+    }
+
     setIsLoading(true);
     try {
-      await donate(state.pId, amount);
-      navigate('/');
+        const data = await donate(state.pId, amount);
+        console.log("Donation successful!", data);
+        // Refresh donators list after successful donation
+        await fetchDonators();
+        alert("Thank you for your donation!");
+        navigate('/');
     } catch (error) {
-      console.error("Error donating:", error);
-      alert("Error donating to campaign. Please try again.");
+        console.error("Donation error details:", error);
+        
+        // Check if transaction was successful despite error
+        if (error?.receipt?.status === 1 || error?.message?.includes('successful')) {
+            console.log("Transaction was successful");
+            await fetchDonators();
+            alert("Donation successful! Thank you for your contribution.");
+            navigate('/');
+        } else if (error?.code === 'ACTION_REJECTED') {
+            alert("Transaction was rejected by user.");
+        } else {
+            alert("Error processing donation. Please try again.");
+        }
+    } finally {
+        setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleSuspendCampaign = async () => {
@@ -279,11 +303,17 @@ const CampaignDetails = () => {
               <div className="flex flex-col gap-4 max-h-[300px] overflow-y-auto">
                 {donators.length > 0 ? donators.map((item, index) => (
                   <div key={`${item.donator}-${index}`} className="flex justify-between items-center gap-4">
-                    <p className="font-epilogue font-normal text-[16px] text-[var(--text)] leading-[26px] break-all">{item.donator}</p>
-                    <p className="font-epilogue font-normal text-[16px] text-[var(--text)] leading-[26px] break-all">{formatEth(item.donation)} ETH</p>
+                    <p className="font-epilogue font-normal text-[16px] text-[var(--text)] leading-[26px] break-all">
+                        {index + 1}. {item.donator}
+                    </p>
+                    <p className="font-epilogue font-normal text-[16px] text-[var(--text)] leading-[26px] break-all">
+                        {parseFloat(item.donation).toFixed(4)} ETH
+                    </p>
                   </div>
                 )) : (
-                  <p className="font-epilogue font-normal text-[16px] text-[var(--subtext)] leading-[26px] text-justify">No donators yet. Be the first one!</p>
+                  <p className="font-epilogue font-normal text-[16px] text-[var(--subtext)] leading-[26px] text-justify">
+                      No donators yet. Be the first one!
+                  </p>
                 )}
               </div>
             </div>
