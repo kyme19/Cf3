@@ -36,81 +36,140 @@ db.once('open', () => {
     console.log('MongoDB connection established successfully');
 });
 
-// Transaction Schema with timestamps
+// Schema Definitions
 const transactionSchema = new mongoose.Schema({
-    transactionHash: { 
-        type: String, 
-        required: true, 
-        unique: true 
-    },
-    campaignId: { 
-        type: String, 
-        required: true 
-    },
-    type: { 
-        type: String, 
-        required: true 
-    },
-    from: { 
-        type: String, 
-        required: true 
-    },
-    to: { 
-        type: String, 
-        required: true 
-    },
-    amount: { 
-        type: String, 
-        required: true 
-    },
-    status: { 
-        type: String, 
-        required: true 
-    },
-    metadata: { 
-        type: Map, 
-        of: mongoose.Schema.Types.Mixed 
-    }
-}, { 
-    timestamps: true 
-});
+    transactionHash: { type: String, required: true, unique: true },
+    campaignId: { type: String, required: true },
+    type: { type: String, required: true },
+    from: { type: String, required: true },
+    to: { type: String, required: true },
+    amount: { type: String, required: true },
+    status: { type: String, required: true },
+    metadata: { type: Map, of: mongoose.Schema.Types.Mixed }
+}, { timestamps: true });
 
+const campaignSchema = new mongoose.Schema({
+    campaignId: { type: String, required: true, unique: true },
+    title: { type: String, required: true },
+    description: String,
+    target: String,
+    deadline: Date,
+    amountCollected: { type: String, default: '0' },
+    owner: { type: String, required: true },
+    image: String,
+    donatorCount: { type: Number, default: 0 }
+}, { timestamps: true });
+
+const userSchema = new mongoose.Schema({
+    address: { type: String, required: true, unique: true },
+    totalDonations: { type: String, default: '0' },
+    campaignsCreated: { type: Number, default: 0 },
+    totalDonated: { type: String, default: '0' },
+    lastActive: { type: Date, default: Date.now }
+}, { timestamps: true });
+
+// Models
 const Transaction = mongoose.model('Transaction', transactionSchema);
+const Campaign = mongoose.model('Campaign', campaignSchema);
+const User = mongoose.model('User', userSchema);
 
-// API Routes with detailed logging
+// Transaction Routes
 app.post('/api/transactions', async (req, res) => {
     try {
         console.log('Received transaction data:', req.body);
-        
         const transaction = new Transaction(req.body);
-        console.log('Created transaction document:', transaction);
-        
         const savedTransaction = await transaction.save();
-        console.log('Saved transaction to MongoDB:', savedTransaction);
-        
+
+        // Update user stats if it's a donation
+        if (req.body.type === 'DONATION') {
+            await User.findOneAndUpdate(
+                { address: req.body.from },
+                { 
+                    $inc: { totalDonated: req.body.amount },
+                    $set: { lastActive: new Date() }
+                },
+                { upsert: true }
+            );
+
+            // Update campaign stats
+            await Campaign.findOneAndUpdate(
+                { campaignId: req.body.campaignId },
+                { 
+                    $inc: { 
+                        donatorCount: 1,
+                        amountCollected: req.body.amount 
+                    }
+                }
+            );
+        }
+
         res.status(201).json(savedTransaction);
     } catch (error) {
         console.error('Error saving transaction:', error);
-        res.status(500).json({ 
-            error: error.message,
-            stack: error.stack 
-        });
+        res.status(500).json({ error: error.message });
     }
 });
 
-// Test route
-app.get('/api/test', (req, res) => {
-    res.json({ message: 'Server is running' });
+// Campaign Routes
+app.post('/api/campaigns', async (req, res) => {
+    try {
+        console.log('Received campaign data:', req.body);
+        const campaign = new Campaign(req.body);
+        const savedCampaign = await campaign.save();
+
+        // Update user's campaign count
+        await User.findOneAndUpdate(
+            { address: req.body.owner },
+            { 
+                $inc: { campaignsCreated: 1 },
+                $set: { lastActive: new Date() }
+            },
+            { upsert: true }
+        );
+
+        res.status(201).json(savedCampaign);
+    } catch (error) {
+        console.error('Error saving campaign:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
-// Get all transactions route
+// User Routes
+app.post('/api/users', async (req, res) => {
+    try {
+        const user = new User(req.body);
+        const savedUser = await user.save();
+        res.status(201).json(savedUser);
+    } catch (error) {
+        console.error('Error saving user:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET routes for each collection
 app.get('/api/transactions', async (req, res) => {
     try {
         const transactions = await Transaction.find({});
-        console.log('Retrieved transactions:', transactions.length);
         res.json(transactions);
     } catch (error) {
-        console.error('Error fetching transactions:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/campaigns', async (req, res) => {
+    try {
+        const campaigns = await Campaign.find({});
+        res.json(campaigns);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/users', async (req, res) => {
+    try {
+        const users = await User.find({});
+        res.json(users);
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
