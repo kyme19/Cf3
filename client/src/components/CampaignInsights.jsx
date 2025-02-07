@@ -32,7 +32,7 @@ const CampaignInsights = ({ campaigns }) => {
   const generateInsights = async () => {
     setIsLoading(true);
     try {
-      const genAI = new GoogleGenerativeAI('AIzaSyApXdUX1M5e8Uz0d4VbKUgib7Ql00Chptw'); // Replace with your actual API key
+      const genAI = new GoogleGenerativeAI('AIzaSyAedprea8VTewgVKuFUXg4oE5AvKIbpXgw'); // Replace with your actual API key
       const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
       const campaignData = JSON.stringify(campaigns.map(c => ({

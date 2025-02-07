@@ -8,7 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { money } from "../assets";
 import { useTheme } from '../context/ThemeContext';
 
-const genAI = new GoogleGenerativeAI("AIzaSyDaccPlLbmhMSNKtMCrUpC_FEYfLjiYFiE");
+const genAI = new GoogleGenerativeAI("AIzaSyAedprea8VTewgVKuFUXg4oE5AvKIbpXgw");
 
 const CreateCampaign = () => {
   const navigate = useNavigate();
