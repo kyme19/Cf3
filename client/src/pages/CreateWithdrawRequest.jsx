@@ -41,7 +41,9 @@ const CreateWithdrawRequest = () => {
     const handleCampaignSelect = (campaignId) => {
         const campaign = userCampaigns.find(c => c.pId.toString() === campaignId);
         if (campaign) {
+            // Convert numeric values to BigNumber
             campaign.amountCollected = ethers.BigNumber.from(campaign.amountCollected);
+            campaign.deadline = ethers.BigNumber.from(campaign.deadline);
         }
         setSelectedCampaign(campaign);
         setForm(prev => ({ ...prev, campaignId }));
@@ -107,7 +109,7 @@ const CreateWithdrawRequest = () => {
 
             // Check if campaign has ended
             const currentTime = Math.floor(Date.now() / 1000);
-            if (currentTime > selectedCampaign.deadline.toNumber()) {
+            if (currentTime > parseInt(selectedCampaign.deadline.toString())) {
                 setError("Cannot create withdrawal request for an ended campaign");
                 return;
             }
@@ -119,30 +121,39 @@ const CreateWithdrawRequest = () => {
                 recipient: form.recipient
             });
 
-            const tx = await createWithdrawRequest(
-                form.campaignId,
-                form.description,
-                amountInWei,
-                form.recipient
-            );
+            try {
+                const result = await createWithdrawRequest(
+                    form.campaignId,
+                    form.description,
+                    amountInWei,
+                    form.recipient
+                );
 
-            // Wait for transaction confirmation
-            await tx.wait();
-            
-            // Navigate to campaign details after successful creation
-            navigate(`/campaign-details/${form.campaignId}`);
-        } catch (error) {
-            console.error("Error creating withdrawal request:", error);
-            
-            // Handle specific error messages
-            if (error.message?.includes("amount too high")) {
-                setError("Withdrawal amount exceeds allowed limit");
-            } else if (error.message?.includes("campaign not active")) {
-                setError("Campaign is not active");
-            } else if (error.message?.includes("not owner")) {
-                setError("Only campaign owner can create withdrawal requests");
-            } else {
-                setError("Failed to create withdrawal request. Please ensure all conditions are met.");
+                if (result.success) {
+                    // Show success message
+                    setError('');
+                    alert('Withdrawal request created successfully!');
+                    
+                    // Navigate to withdrawal requests page for this campaign
+                    navigate(`/campaign/${form.campaignId}/withdraw`);
+                } else {
+                    setError(result.error || "Failed to create withdrawal request");
+                }
+            } catch (error) {
+                console.error("Error creating withdrawal request:", error);
+                
+                // Handle specific error messages
+                if (error.message?.includes("cooldown period")) {
+                    setError("Must wait for cooldown period before creating another request");
+                } else if (error.message?.includes("maximum withdrawal limit")) {
+                    setError("Amount exceeds maximum withdrawal limit (50% of current balance)");
+                } else if (error.message?.includes("campaign not active")) {
+                    setError("Campaign is not active");
+                } else if (error.message?.includes("not owner")) {
+                    setError("Only campaign owner can create withdrawal requests");
+                } else {
+                    setError(error.message || "Failed to create withdrawal request. Please ensure all conditions are met.");
+                }
             }
         } finally {
             setIsLoading(false);

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ethers } from 'ethers';
 import { useStateContext } from '../context';
 import { CustomButton, Loader } from '../components';
+import toast from 'react-hot-toast';
 
 const WithdrawRequest = () => {
     const navigate = useNavigate();
@@ -14,247 +15,237 @@ const WithdrawRequest = () => {
         getCampaigns, 
         getWithdrawRequests,
         approveRequest,
-        finalizeRequest 
+        finalizeRequest,
+        demoMode,
+        createWithdrawRequest
     } = useStateContext();
   
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
+    const [actionLoading, setActionLoading] = useState({ type: null, requestId: null });
     const [error, setError] = useState('');
     const [campaign, setCampaign] = useState(null);
     const [withdrawRequests, setWithdrawRequests] = useState([]);
-    const [actionInProgress, setActionInProgress] = useState(false);
-    const [refreshKey, setRefreshKey] = useState(0);
+
+    const fetchData = async () => {
+        if (!contract || !id || !address) return;
+
+        try {
+            setIsLoading(true);
+            const campaigns = await getCampaigns();
+            const currentCampaign = campaigns.find(c => c.pId.toString() === id);
+            
+            if (!currentCampaign) {
+                setError("Campaign not found");
+                return;
+            }
+
+            setCampaign(currentCampaign);
+            const requests = await getWithdrawRequests(id);
+            setWithdrawRequests(requests);
+            setError('');
+        } catch (error) {
+            console.error("Error fetching data:", error);
+            toast.error("Failed to load campaign details");
+            setError("Failed to load campaign details");
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
-        let mounted = true;
-        let retryCount = 0;
-        const maxRetries = 3;
-
-        const fetchData = async () => {
-            if (!contract || !id || !address) return;
-
-            try {
-                const campaigns = await getCampaigns();
-                const currentCampaign = campaigns.find(c => c.pId.toString() === id);
-                
-                if (!currentCampaign) {
-                    if (retryCount < maxRetries) {
-                        retryCount++;
-                        setTimeout(fetchData, 1000); // Retry after 1 second
-                        return;
-                    }
-                    if (mounted) setError("Campaign not found");
-                    return;
-                }
-
-                if (mounted) {
-                    setCampaign(currentCampaign);
-                    const requests = await getWithdrawRequests(id);
-                    setWithdrawRequests(requests);
-                    setError('');
-                }
-            } catch (error) {
-                if (mounted) {
-                    console.error("Error fetching data:", error);
-                    setError("Failed to load campaign details");
-                }
-            } finally {
-                if (mounted) {
-                    setIsLoading(false);
-                }
-            }
-        };
-
-        setIsLoading(true);
         fetchData();
-
-        return () => {
-            mounted = false;
-        };
-    }, [contract, id, address, getCampaigns, getWithdrawRequests, refreshKey]);
+    }, [contract, id, address]);
 
     const handleApprove = async (requestId) => {
-        if (actionInProgress) return;
-        
         try {
-            setActionInProgress(true);
-            await approveRequest(id, requestId);
-            setRefreshKey(prev => prev + 1);
+            setActionLoading({ type: 'approve', requestId });
+            
+            if (demoMode) {
+                // Update local state immediately
+                setWithdrawRequests(prev => prev.map(req => {
+                    if (req.id === requestId) {
+                        return {
+                            ...req,
+                            approvalCount: req.approvalCount + 1,
+                            hasVoted: true
+                        };
+                    }
+                    return req;
+                }));
+                toast.success("Request approved successfully!");
+            } else {
+                const response = await approveRequest(id, requestId);
+                if (response.success) {
+                    toast.success("Request approved successfully!");
+                    await fetchData(); // Refresh data for real transactions
+                } else {
+                    throw new Error(response.error || "Failed to approve request");
+                }
+            }
         } catch (error) {
-            console.error("Error approving request:", error);
-            setError("Failed to approve request");
+            console.error("Error in handleApprove:", error);
+            toast.error(error.message || "Failed to approve request");
         } finally {
-            setActionInProgress(false);
+            setActionLoading({ type: null, requestId: null });
         }
     };
 
     const handleFinalize = async (requestId) => {
-        if (actionInProgress) return;
-        
         try {
-            setActionInProgress(true);
-            await finalizeRequest(id, requestId);
-            setRefreshKey(prev => prev + 1);
+            setActionLoading({ type: 'finalize', requestId });
+            
+            if (demoMode) {
+                // Update local state immediately
+                setWithdrawRequests(prev => prev.map(req => {
+                    if (req.id === requestId) {
+                        return {
+                            ...req,
+                            completed: true
+                        };
+                    }
+                    return req;
+                }));
+                toast.success("Request finalized successfully!");
+            } else {
+                const response = await finalizeRequest(id, requestId);
+                if (response.success) {
+                    toast.success("Request finalized successfully!");
+                    await fetchData(); // Refresh data for real transactions
+                } else {
+                    throw new Error(response.error || "Failed to finalize request");
+                }
+            }
         } catch (error) {
-            console.error("Error finalizing request:", error);
-            setError("Failed to finalize request");
+            console.error("Error in handleFinalize:", error);
+            toast.error(error.message || "Failed to finalize request");
         } finally {
-            setActionInProgress(false);
+            setActionLoading({ type: null, requestId: null });
         }
     };
 
-    const formatDate = (timestamp) => {
-        return new Date(timestamp * 1000).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
-
-    const shortenAddress = (address) => {
-        return `${address.slice(0, 6)}...${address.slice(-4)}`;
+    const handleCreateRequest = () => {
+        navigate(`/campaign/${id}/withdraw/create`);
     };
 
     if (!address) {
         return (
-            <div className="bg-[var(--card)] flex justify-center items-center flex-col rounded-[10px] sm:p-10 p-4">
-                <p className="font-epilogue font-semibold text-[16px] leading-[30px] text-[var(--text)]">
+            <div className="bg-[#1c1c24] flex justify-center items-center flex-col rounded-[10px] sm:p-10 p-4">
+                <p className="font-epilogue font-semibold text-[16px] leading-[30px] text-white">
                     Please connect your wallet to view withdrawal requests.
                 </p>
             </div>
         );
     }
 
+    if (isLoading) {
+        return <Loader />;
+    }
+
+    if (error) {
+        return (
+            <div className="bg-[#1c1c24] flex justify-center items-center flex-col rounded-[10px] sm:p-10 p-4">
+                <p className="font-epilogue font-semibold text-[16px] leading-[30px] text-white">
+                    {error}
+                </p>
+            </div>
+        );
+    }
+
     return (
-        <div className="bg-[var(--bg-secondary)] flex justify-center items-center flex-col rounded-[10px] sm:p-10 p-4">
-            {/* Wallet Status */}
-            <div className="w-full flex justify-end mb-4">
-                {address ? (
-                    <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-[#1dc071]"></span>
-                        <p className="font-epilogue text-[14px] text-[var(--text)]">Wallet Connected</p>
-                    </div>
-                ) : (
-                    <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-[#ff0000]"></span>
-                        <p className="font-epilogue text-[14px] text-[var(--text)]">⚠️ Please connect wallet to continue</p>
-                    </div>
-                )}
-            </div>
-
-            <div className="flex justify-center items-center p-[16px] sm:min-w-[380px] bg-[var(--card)] rounded-[10px]">
-                <h1 className="font-epilogue font-bold sm:text-[25px] text-[18px] leading-[38px] text-[var(--text)]">Withdrawal Requests</h1>
-            </div>
-
-            {error ? (
-                <div className="mt-[20px] p-4 bg-red-100 dark:bg-red-900 rounded-[10px]">
-                    <p className="font-epilogue text-red-600 dark:text-red-200">{error}</p>
-                </div>
-            ) : !campaign ? (
-                <div className="mt-[65px] flex flex-col items-center">
-                    <p className="font-epilogue text-[16px] text-[var(--text)]">No withdrawal requests have been made yet. Check back later!</p>
-                </div>
-            ) : (
-                <>
-                    {/* Campaign Details */}
-                    <div className="w-full bg-[var(--card)] rounded-[10px] mt-[20px] p-4">
-                        <h2 className="font-epilogue font-semibold text-[18px] text-[var(--text)]">{campaign.title}</h2>
-                        <div className="mt-[20px] flex flex-col gap-4">
-                            <div className="flex justify-between items-center">
-                                <span className="font-epilogue text-[14px] text-[var(--subtext)]">Campaign Balance</span>
-                                <span className="font-epilogue text-[16px] text-[var(--text)]">
-                                    {ethers.utils.formatEther(campaign.amountCollected)} ETH
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="font-epilogue text-[14px] text-[var(--subtext)]">Campaign Owner</span>
-                                <span className="font-epilogue text-[14px] text-[var(--text)]">
-                                    {campaign.owner.slice(0, 6)}...{campaign.owner.slice(-4)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="font-epilogue text-[14px] text-[var(--subtext)]">Status</span>
-                                <span className={`font-epilogue text-[14px] ${campaign.isRefunded ? 'text-red-500' : 'text-green-500'}`}>
-                                    {campaign.isRefunded ? 'Refunded' : 'Active'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Withdrawal Requests Table */}
-                    {withdrawRequests.length === 0 ? (
-                        <div className="mt-[20px] w-full bg-[var(--card)] rounded-[10px] p-4">
-                            <p className="font-epilogue text-center text-[16px] text-[var(--text)]">No withdrawal requests yet</p>
-                        </div>
-                    ) : (
-                        <div className="mt-[20px] w-full overflow-x-auto">
-                            <table className="w-full bg-[var(--card)] rounded-[10px]">
-                                <thead className="border-b border-[var(--border)]">
-                                    <tr>
-                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">ID</th>
-                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Description</th>
-                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Amount</th>
-                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Recipient</th>
-                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Status</th>
-                                        <th className="p-4 text-left font-epilogue text-[14px] text-[var(--text)]">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {withdrawRequests.map((request, index) => (
-                                        <tr key={index} className="border-b border-[var(--border)] hover:bg-[var(--bg-secondary)]">
-                                            <td className="p-4 font-epilogue text-[14px] text-[var(--text)]">{request.id.toString()}</td>
-                                            <td className="p-4 font-epilogue text-[14px] text-[var(--text)]">{request.description}</td>
-                                            <td className="p-4 font-epilogue text-[14px] text-[var(--text)]">
-                                                {ethers.utils.formatEther(request.amount)} ETH
-                                            </td>
-                                            <td className="p-4 font-epilogue text-[14px] text-[var(--text)]">
-                                                {`${request.recipient.slice(0, 6)}...${request.recipient.slice(-4)}`}
-                                            </td>
-                                            <td className="p-4 font-epilogue text-[14px]">
-                                                {request.complete ? (
-                                                    <span className="text-green-500">Completed</span>
-                                                ) : request.approvalCount >= campaign.donatorCount / 2 ? (
-                                                    <span className="text-yellow-500">Ready to Finalize</span>
-                                                ) : (
-                                                    <span className="text-[var(--text)]">
-                                                        {request.approvalCount} / {campaign.donatorCount} Approvals
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="p-4">
-                                                {!request.complete && (
-                                                    <div className="flex gap-2">
-                                                        {!request.approvers[address] && (
-                                                            <CustomButton 
-                                                                btnType="button"
-                                                                title="Approve"
-                                                                styles={`bg-[#1dc071] ${actionInProgress ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                                handleClick={() => handleApprove(request.id)}
-                                                                disabled={actionInProgress}
-                                                            />
-                                                        )}
-                                                        {campaign.owner.toLowerCase() === address.toLowerCase() && 
-                                                         request.approvalCount >= campaign.donatorCount / 2 && (
-                                                            <CustomButton 
-                                                                btnType="button"
-                                                                title="Finalize"
-                                                                styles={`bg-[#8c6dfd] ${actionInProgress ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                                handleClick={() => handleFinalize(request.id)}
-                                                                disabled={actionInProgress}
-                                                            />
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+        <div className="flex-1 max-sm:w-full max-w-[1280px] mx-auto sm:pr-5">
+            <div className="flex flex-col gap-[30px]">
+                <div className="flex justify-between items-center">
+                    <h1 className="font-epilogue font-semibold text-[18px] text-white dark:text-white text-gray-900 uppercase">
+                        Withdrawal Requests ({withdrawRequests.length})
+                    </h1>
+                    {campaign && campaign.owner.toLowerCase() === address.toLowerCase() && (
+                        <CustomButton 
+                            btnType="button"
+                            title="Create Request"
+                            styles="bg-[#8c6dfd]"
+                            handleClick={handleCreateRequest}
+                        />
                     )}
-                </>
-            )}
+                </div>
+
+                <div className="overflow-x-auto rounded-[10px] border border-gray-200 dark:border-gray-700">
+                    <table className="min-w-full bg-white dark:bg-[#1c1c24]">
+                        <thead>
+                            <tr className="border-b border-gray-200 dark:border-gray-700">
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">ID</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Description</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Amount (ETH)</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Recipient</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Approval Count</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {withdrawRequests.length === 0 ? (
+                                <tr>
+                                    <td colSpan="6" className="px-6 py-4 text-center text-gray-700 dark:text-gray-300">
+                                        No withdrawal requests found
+                                    </td>
+                                </tr>
+                            ) : (
+                                withdrawRequests.map((request, i) => (
+                                    <tr key={i} className={`border-b border-gray-200 dark:border-gray-700 ${request.completed ? 'opacity-50 bg-gray-50 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{i}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{request.description}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{request.amount}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">{request.recipient}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                            {request.approvalCount}/{campaign?.donatorCount || 2}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                            {!request.completed && (
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => handleApprove(request.id)}
+                                                        disabled={actionLoading.type === 'approve' && actionLoading.requestId === request.id || request.hasVoted}
+                                                        className={`px-4 py-2 rounded-md text-white transition-all duration-200 ${
+                                                            request.hasVoted
+                                                                ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed'
+                                                                : actionLoading.type === 'approve' && actionLoading.requestId === request.id
+                                                                ? 'bg-[#1dc071] opacity-75 cursor-wait'
+                                                                : 'bg-[#1dc071] hover:bg-[#1db071] hover:shadow-md'
+                                                        }`}
+                                                    >
+                                                        {actionLoading.type === 'approve' && actionLoading.requestId === request.id
+                                                            ? 'Approving...'
+                                                            : request.hasVoted 
+                                                            ? 'Approved' 
+                                                            : 'Approve'}
+                                                    </button>
+                                                    {campaign && campaign.owner.toLowerCase() === address.toLowerCase() && 
+                                                     request.approvalCount > (campaign.donatorCount || 2) / 2 && (
+                                                        <button
+                                                            onClick={() => handleFinalize(request.id)}
+                                                            disabled={actionLoading.type === 'finalize' && actionLoading.requestId === request.id}
+                                                            className={`px-4 py-2 rounded-md text-white transition-all duration-200 ${
+                                                                actionLoading.type === 'finalize' && actionLoading.requestId === request.id
+                                                                    ? 'bg-[#8c6dfd] opacity-75 cursor-wait'
+                                                                    : 'bg-[#8c6dfd] hover:bg-[#7c5dfd] hover:shadow-md'
+                                                            }`}
+                                                        >
+                                                            {actionLoading.type === 'finalize' && actionLoading.requestId === request.id
+                                                                ? 'Finalizing...'
+                                                                : 'Finalize'}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {request.completed && (
+                                                <span className="text-gray-500 dark:text-gray-400">Completed</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     );
 };

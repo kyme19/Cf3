@@ -27,12 +27,14 @@ export const navlinks = [
   {
     name: 'withdraw',
     IconComponent: BsCashStack,
-    link: '/campaign/1/withdraw', // For viewing withdrawal requests
+    text: 'View Withdrawals',
+    link: '/campaign/:id/withdraw', // For viewing and voting on withdrawal requests
   },
   {
     name: 'create-withdraw',
     IconComponent: BsCashCoin,
-    link: '/campaign/1/withdraw/create', // For creating new withdrawal request
+    text: 'Request Withdrawal',
+    link: '/campaign/:id/withdraw/create', // For creating new withdrawal request
   },
   {
     name: "profile",

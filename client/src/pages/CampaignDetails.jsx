@@ -326,9 +326,33 @@ const CampaignDetails = () => {
         <div className='mt-8 mb-12 flex gap-4 justify-end'>
           <CustomButton 
             btnType="button"
+            title="Create Withdrawal Request"
+            styles="bg-[var(--accent)]"
+            handleClick={() => navigate(`/campaign/${state.pId}/withdraw/create`)}
+          />
+          <CustomButton 
+            btnType="button"
+            title="View Withdrawal Requests"
+            styles="bg-[var(--secondary)]"
+            handleClick={() => navigate(`/campaign/${state.pId}/withdraw`)}
+          />
+          <CustomButton 
+            btnType="button"
             title="Refund Campaign"
             styles="bg-[var(--error)]"
             handleClick={() => setShowRefundModal(true)}
+          />
+        </div>
+      )}
+
+      {/* For Contributors/Donors */}
+      {address && address !== state.owner && (
+        <div className='mt-8 mb-12 flex gap-4 justify-end'>
+          <CustomButton 
+            btnType="button"
+            title="View & Vote on Withdrawals"
+            styles="bg-[var(--secondary)]"
+            handleClick={() => navigate(`/campaign/${state.pId}/withdraw`)}
           />
         </div>
       )}

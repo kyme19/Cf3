@@ -7,55 +7,42 @@ import { navlinks } from "../constants";
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const [isActive, setisActive] = useState("dashboard");
-  const [toggleDrawer, settoggleDrawer] = useState(false);
-  const { connect, address, getCampaigns } = useStateContext();
-  const [searchTerm, setSearchTerm] = useState('');
-
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (searchTerm.trim()) {
-      navigate(`/?search=${encodeURIComponent(searchTerm.trim())}`);
-    }
-  };
+  const [isActive, setIsActive] = useState("dashboard");
+  const [toggleDrawer, setToggleDrawer] = useState(false);
+  const { connect, address } = useStateContext();
 
   return (
     <div className="flex md:flex-row flex-col-reverse justify-between mb-[35px] gap-6">
       {/* Search Bar */}
-      <form onSubmit={handleSearch} className="lg:flex-1 flex flex-row max-w-[458px] py-2 pl-4 pr-2 h-[52px] bg-[var(--card)] rounded-[100px] border border-[var(--border)]">
+      <div className="lg:flex-1 flex flex-row max-w-[458px] py-2 pl-4 pr-2 h-[52px] bg-[var(--card)] rounded-[100px]">
         <input
           type="text"
           placeholder="Search for campaigns"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
           className="flex w-full font-epilogue font-normal text-[14px] 
           placeholder:text-[var(--subtext)] text-[var(--text)] bg-transparent outline-none"
         />
-        <button 
-          type="submit"
-          className="w-[72px] h-full rounded-[20px] bg-[var(--accent)] flex justify-center items-center cursor-pointer hover:opacity-90 transition-opacity"
-        >
+        <div className="w-[72px] h-full rounded-[20px] bg-[var(--accent)] flex justify-center items-center cursor-pointer">
           <img
             src={search}
             alt="search"
             className="w-[15px] h-[15px] object-contain"
           />
-        </button>
-      </form>
+        </div>
+      </div>
 
       {/* Desktop Navigation */}
       <div className="sm:flex hidden flex-row justify-end gap-4">
         <CustomButton
           btnType="button"
           title={address ? "Create a campaign" : "Connect"}
-          styles={address ? "bg-[var(--accent)]" : "bg-[#8c6dfd]"}
+          styles={address ? "bg-[var(--accent)]" : "bg-[var(--success)]"}
           handleClick={() => {
             if (address) navigate("create-campaign");
             else connect();
           }}
         />
         <Link to="/profile">
-          <div className="w-[52px] h-[52px] rounded-full bg-[var(--secondary)] flex justify-center items-center cursor-pointer hover:opacity-90 transition-opacity">
+          <div className="w-[52px] h-[52px] rounded-full bg-[var(--card)] flex justify-center items-center cursor-pointer">
             <img
               src={thirdweb}
               alt="user"
@@ -67,7 +54,7 @@ const Navbar = () => {
 
       {/* Mobile Navigation */}
       <div className="sm:hidden flex justify-between items-center relative">
-        <div className="w-[40px] h-[40px] rounded-[10px] bg-[var(--secondary)] flex justify-center items-center cursor-pointer">
+        <div className="w-[40px] h-[40px] rounded-[10px] bg-[var(--card)] flex justify-center items-center cursor-pointer">
           <img
             src={logo}
             alt="user"
@@ -78,10 +65,10 @@ const Navbar = () => {
           src={menu}
           alt="menu"
           className="w-[34px] h-[34px] object-contain cursor-pointer"
-          onClick={() => settoggleDrawer((prev) => !prev)}
+          onClick={() => setToggleDrawer((prev) => !prev)}
         />
         <div
-          className={`absolute top-[60px] right-0 left-0 bg-[var(--card)] z-10 shadow-lg py-4 ${
+          className={`absolute top-[60px] right-0 left-0 bg-[var(--card)] z-10 shadow-secondary py-4 ${
             !toggleDrawer ? "-translate-y-[100vh]" : "translate-y-0"
           } transition-all duration-700`}
         >
@@ -90,26 +77,24 @@ const Navbar = () => {
               <li
                 key={link.name}
                 className={`flex p-4 ${
-                  isActive === link.name ? "bg-[var(--secondary)]" : ""
-                } hover:bg-[var(--secondary)] transition-colors`}
+                  isActive === link.name ? "bg-[var(--accent)]" : ""
+                }`}
                 onClick={() => {
-                  setisActive(link.name);
-                  settoggleDrawer(false);
+                  setIsActive(link.name);
+                  setToggleDrawer(false);
                   navigate(link.link);
                 }}
               >
                 <img
                   src={link.imgUrl}
                   alt={link.name}
-                  className={`w-24px h-[24px] object-contain ${
-                    isActive === link.name ? "grayscale-0" : "grayscale"
+                  className={`w-[24px] h-[24px] object-contain ${
+                    isActive === link.name ? "" : "grayscale"
                   }`}
                 />
                 <p
                   className={`ml-[20px] font-epilogue font-semibold text-[14px] ${
-                    isActive === link.name
-                      ? "text-[var(--accent)]"
-                      : "text-[var(--subtext)]"
+                    isActive === link.name ? "text-[var(--text)]" : "text-[var(--subtext)]"
                   }`}
                 >
                   {link.name}
@@ -121,7 +106,7 @@ const Navbar = () => {
             <CustomButton
               btnType="button"
               title={address ? "Create a campaign" : "Connect"}
-              styles={address ? "bg-[var(--accent)]" : "bg-[#8c6dfd]"}
+              styles={address ? "bg-[var(--accent)]" : "bg-[var(--success)]"}
               handleClick={() => {
                 if (address) navigate("create-campaign");
                 else connect();

@@ -4,6 +4,7 @@ import { Sidebar, Navbar, Footer } from './components';
 import { CampaignDetails, CreateCampaign, Home, Profile, WithdrawRequest, CreateWithdrawRequest } from './pages';
 import { ThemeProvider } from './context/ThemeContext';
 import { StateContextProvider } from './context';
+import { Toaster } from 'react-hot-toast';
 
 const App = () => {
     return (
@@ -36,6 +37,17 @@ const App = () => {
 
                     {/* Footer */}
                     <Footer />
+
+                    <Toaster 
+                        position="top-right"
+                        toastOptions={{
+                            duration: 3000,
+                            style: {
+                                background: '#1c1c24',
+                                color: '#fff',
+                            },
+                        }}
+                    />
                 </div>
             </StateContextProvider>
         </ThemeProvider>

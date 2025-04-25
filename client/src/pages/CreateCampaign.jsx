@@ -8,7 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { money } from "../assets";
 import { useTheme } from '../context/ThemeContext';
 
-const genAI = new GoogleGenerativeAI("AIzaSyAedprea8VTewgVKuFUXg4oE5AvKIbpXgw");
+const genAI = new GoogleGenerativeAI("AIzaSyCC6wB3yL57A1lIoyr4O4ux5TrjBAdO2u8");
 
 const CreateCampaign = () => {
   const navigate = useNavigate();
@@ -66,7 +66,7 @@ const CreateCampaign = () => {
 
     setIsGenerating(true);
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
       const prompt = `Write a compelling crowdfunding campaign story (250-300 words) for a campaign titled "${form.title}". 
         Additional context: ${aiPrompt}
         Make it emotional, authentic, and include:

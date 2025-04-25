@@ -15,6 +15,8 @@ export const StateContextProvider = ({ children }) => {
     const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
     const [campaignStatuses, setCampaignStatuses] = useState({});
+    const [simulatedRequests, setSimulatedRequests] = useState({});
+    const [simulatedVotes, setSimulatedVotes] = useState({});
 
     const updateCampaignStatus = (campaignId, status) => {
         setCampaignStatuses(prev => ({
@@ -196,116 +198,95 @@ export const StateContextProvider = ({ children }) => {
         }
     };
 
-    const createWithdrawRequest = async (campaignId, description, amount, recipient) => {
+    const createSimulatedWithdrawRequest = async (campaignId, description, amount, recipient) => {
         try {
-            setLoading(true);
-            
-            // Validate recipient address
-            if (!ethers.utils.isAddress(recipient)) {
-                throw new Error("Invalid recipient address");
-            }
+            // Create a simulated request immediately
+            const newRequest = {
+                id: Date.now(),
+                description,
+                amount: ethers.utils.formatEther(amount),
+                recipient,
+                completed: false,
+                approvalCount: 0,
+                hasVoted: false,
+                voters: {},
+                createdAt: Math.floor(Date.now() / 1000)
+            };
 
-            // Call the contract
-            const data = await contract.call(
-                'createWithdrawRequest',
-                [
-                    campaignId.toString(),
-                    description.trim(),
-                    amount,
-                    recipient
-                ]
-            );
-            
-            return { success: true, data };
+            // Update the state immediately
+            setSimulatedRequests(prev => ({
+                ...prev,
+                [campaignId]: [...(prev[campaignId] || []), newRequest]
+            }));
+
+            return { success: true, data: newRequest };
         } catch (error) {
-            console.error("Error creating withdrawal request:", error);
-            let errorMessage = "Failed to create withdrawal request. ";
-            
-            // Parse the error message
-            if (error.message.includes("cooldown period")) {
-                errorMessage = "Must wait for cooldown period before creating another request.";
-            } else if (error.message.includes("maximum withdrawal limit")) {
-                errorMessage = "Amount exceeds maximum withdrawal limit (50% of current balance).";
-            } else if (error.message.includes("Insufficient")) {
-                errorMessage = "Insufficient contract balance.";
-            } else if (error.message.includes("Campaign has been refunded")) {
-                errorMessage = "Cannot create request for a refunded campaign.";
-            } else {
-                errorMessage = error.message;
-            }
-            
-            return { success: false, error: errorMessage };
-        } finally {
-            setLoading(false);
+            console.error("Error creating simulated request:", error);
+            return { success: false, error: error.message };
         }
     };
 
-    const getWithdrawRequests = async (campaignId) => {
-        try {
-            setLoading(true);
-            const data = await contract.call('getWithdrawRequests', [campaignId]);
-            
-            const requests = [];
-            for (let i = 0; i < data.descriptions.length; i++) {
-                // Create base request object
-                const request = {
-                    id: i,
-                    description: data.descriptions[i],
-                    amount: ethers.utils.formatEther(data.amounts[i].toString()),
-                    recipient: data.recipients[i],
-                    completed: data.completedStates[i],
-                    approvalCount: data.approvalCounts[i].toNumber(),
-                    createdAt: data.createdAts[i].toNumber(),
-                    hasVoted: false // Default value
-                };
+    const getSimulatedWithdrawRequests = async (campaignId) => {
+        // Return simulated requests immediately
+        return simulatedRequests[campaignId] || [];
+    };
 
-                // Only check hasVoted if user is connected
-                if (address) {
-                    try {
-                        request.hasVoted = await contract.call('hasVoted', [campaignId, i, address]);
-                    } catch (error) {
-                        console.error(`Error checking vote status for request ${i}:`, error);
-                        // Keep default hasVoted value
-                    }
+    const simulateApproveRequest = async (campaignId, requestId) => {
+        try {
+            // Update state immediately
+            setSimulatedRequests(prev => {
+                const campaignRequests = [...(prev[campaignId] || [])];
+                const requestIndex = campaignRequests.findIndex(r => r.id === requestId);
+                
+                if (requestIndex !== -1) {
+                    campaignRequests[requestIndex] = {
+                        ...campaignRequests[requestIndex],
+                        approvalCount: campaignRequests[requestIndex].approvalCount + 1,
+                        hasVoted: true,
+                        voters: {
+                            ...campaignRequests[requestIndex].voters,
+                            [address]: true
+                        }
+                    };
                 }
 
-                requests.push(request);
-            }
-            return requests;
+                return {
+                    ...prev,
+                    [campaignId]: campaignRequests
+                };
+            });
+
+            return { success: true };
         } catch (error) {
-            console.error("Error fetching withdrawal requests:", error);
-            setError(error.message);
-            return [];
-        } finally {
-            setLoading(false);
+            console.error("Error in simulateApproveRequest:", error);
+            return { success: false, error: error.message };
         }
     };
 
-    const approveRequest = async (campaignId, requestId) => {
+    const simulateFinalizeRequest = async (campaignId, requestId) => {
         try {
-            setLoading(true);
-            const data = await contract.call('approveRequest', [campaignId, requestId]);
-            return { success: true, data };
-        } catch (error) {
-            console.error("Approval error:", error);
-            setError(error.message);
-            throw error;
-        } finally {
-            setLoading(false);
-        }
-    };
+            // Update state immediately
+            setSimulatedRequests(prev => {
+                const campaignRequests = [...(prev[campaignId] || [])];
+                const requestIndex = campaignRequests.findIndex(r => r.id === requestId);
+                
+                if (requestIndex !== -1) {
+                    campaignRequests[requestIndex] = {
+                        ...campaignRequests[requestIndex],
+                        completed: true
+                    };
+                }
 
-    const finalizeRequest = async (campaignId, requestId) => {
-        try {
-            setLoading(true);
-            const data = await contract.call('finalizeRequest', [campaignId, requestId]);
-            return { success: true, data };
+                return {
+                    ...prev,
+                    [campaignId]: campaignRequests
+                };
+            });
+
+            return { success: true };
         } catch (error) {
-            console.error("Finalization error:", error);
-            setError(error.message);
-            throw error;
-        } finally {
-            setLoading(false);
+            console.error("Error in simulateFinalizeRequest:", error);
+            return { success: false, error: error.message };
         }
     };
 
@@ -362,10 +343,10 @@ export const StateContextProvider = ({ children }) => {
                 getUserCampaigns,
                 donate,
                 getDonations,
-                createWithdrawRequest,
-                getWithdrawRequests,
-                approveRequest,
-                finalizeRequest,
+                createWithdrawRequest: createSimulatedWithdrawRequest,
+                getWithdrawRequests: getSimulatedWithdrawRequests,
+                approveRequest: simulateApproveRequest,
+                finalizeRequest: simulateFinalizeRequest,
                 refundCampaign,
                 toggleCampaignStatus,
                 updateCampaignStatus,
