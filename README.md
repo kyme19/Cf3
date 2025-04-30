@@ -167,7 +167,3 @@ Big shoutout to the Web3 and open-source community for inspiration!
 
 **Live. Decentralized. Transparent. Welcome to FundFair. 💰**
 ```
-
----
-
-Let me know if you want badges, GIF demos, or a quick deploy-to-Netlify section added! GGs again on crushing it 🏆
