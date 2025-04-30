@@ -1,5 +1,3 @@
----
-```markdown
 # 🚀 FundFair – Decentralized Crowdfunding Platform
 
 **FundFair** is a Web3-powered crowdfunding platform that enables campaign creators to raise funds transparently while allowing contributors to participate in governance through smart contract-based voting. Built with **React**, **Solidity**, **Node.js**, and integrated with **MetaMask**, FundFair is modular, easy to use, and developer-friendly.
